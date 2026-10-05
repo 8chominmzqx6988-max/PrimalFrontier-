@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>PRIMAL FRONTIER — iPad 3D</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07130d;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;touch-action:none}
+canvas{display:block;width:100%;height:100%}
+#loading{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(#07130d,#10271a);color:white;z-index:30;text-align:center}
+#loading b{font-size:32px;letter-spacing:2px} #loading small{display:block;margin-top:12px;opacity:.8}
+#hud{position:fixed;inset:0;pointer-events:none;color:#fff;text-shadow:0 2px 3px #000}
+.panel{background:#07130db8;border:1px solid #ffffff26;backdrop-filter:blur(5px);border-radius:14px}
+#stats{position:absolute;left:max(12px,env(safe-area-inset-left));top:max(12px,env(safe-area-inset-top));padding:10px 12px;width:220px}
+.title{font-weight:800;letter-spacing:1.2px}.bar{height:8px;background:#0008;border-radius:8px;margin-top:6px;overflow:hidden}.fill{height:100%;background:#eee}
+#hp .fill{background:#db5a4f} #st .fill{background:#e7c55d} #hu .fill{background:#7ecb6c} #th .fill{background:#62bfe6}
+#quest{position:absolute;right:max(12px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top));padding:10px 12px;width:230px;font-size:13px}
+#toast{position:absolute;left:50%;top:18%;transform:translateX(-50%);padding:9px 14px;opacity:0;transition:.2s}
+#hotbar{position:absolute;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;gap:7px}
+.slot{width:50px;height:50px;display:grid;place-items:center;font-size:23px;position:relative}.slot small{position:absolute;right:5px;bottom:3px;font-size:10px}
+#joy{pointer-events:auto;position:absolute;left:max(20px,env(safe-area-inset-left));bottom:max(25px,env(safe-area-inset-bottom));width:126px;height:126px;border-radius:50%;background:#ffffff18;border:2px solid #ffffff35}
+#knob{position:absolute;width:52px;height:52px;border-radius:50%;background:#ffffff52;left:37px;top:37px}
+.actions{position:absolute;right:max(18px,env(safe-area-inset-right));bottom:max(25px,env(safe-area-inset-bottom));width:180px;height:150px;pointer-events:auto}
+.btn{position:absolute;border:1px solid #ffffff44;background:#13271dcc;color:#fff;border-radius:50%;font-weight:700;text-shadow:0 1px 2px #000}
+#attack{width:76px;height:76px;right:0;bottom:0;font-size:15px}#gather{width:62px;height:62px;right:82px;bottom:5px}#build{width:55px;height:55px;right:16px;bottom:86px}
+#hint{position:absolute;left:50%;bottom:82px;transform:translateX(-50%);font-size:12px;opacity:.8}
+@media(max-width:700px){#quest{width:180px}.slot{width:42px;height:42px}#stats{width:185px}}
+</style>
+</head>
+<body>
+<div id="loading"><div><b>PRIMAL FRONTIER</b><small>กำลังสร้างเกาะ 3D สำหรับ iPad…</small></div></div>
+<div id="hud">
+ <div id="stats" class="panel"><div class="title">PRIMAL FRONTIER <span id="level">Lv.1</span></div>
+  <div id="hp" class="bar"><div class="fill" style="width:100%"></div></div>
+  <div id="st" class="bar"><div class="fill" style="width:100%"></div></div>
+  <div id="hu" class="bar"><div class="fill" style="width:90%"></div></div>
+  <div id="th" class="bar"><div class="fill" style="width:92%"></div></div>
+ </div>
+ <div id="quest" class="panel"><b>ภารกิจแรก</b><br>เก็บไม้ 0/5 · หิน 0/3<br><span id="clock">Day 1 · 08:00</span></div>
+ <div id="toast" class="panel"></div>
+ <div id="hotbar"><div class="slot panel">🪵<small id="wood">0</small></div><div class="slot panel">🪨<small id="stone">0</small></div><div class="slot panel">🥩<small>0</small></div><div class="slot panel">🗡️</div><div class="slot panel">🔥</div></div>
+ <div id="joy"><div id="knob"></div></div>
+ <div class="actions"><button id="attack" class="btn">โจมตี</button><button id="gather" class="btn">เก็บ</button><button id="build" class="btn">สร้าง</button></div>
+ <div id="hint">ลากด้านขวาของจอเพื่อหมุนกล้อง</div>
+</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js';
+
+const loading=document.querySelector('#loading'), toast=document.querySelector('#toast');
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9bc8d0); scene.fog=new THREE.FogExp2(0x8eb5a8,.008);
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,500);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.7)); renderer.setSize(innerWidth,innerHeight); renderer.shadowMap.enabled=true; document.body.prepend(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xbfe3ff,0x31482a,2.1));
+const sun=new THREE.DirectionalLight(0xffe1b0,3);sun.position.set(-30,45,15);sun.castShadow=true;scene.add(sun);
+
+const mat=(c,r=.85)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
+const ground=new THREE.Mesh(new THREE.CylinderGeometry(78,92,5,64),mat(0x416b35));ground.position.y=-2.8;ground.receiveShadow=true;scene.add(ground);
+const beach=new THREE.Mesh(new THREE.RingGeometry(72,90,64),mat(0xb9a66d));beach.rotation.x=-Math.PI/2;beach.position.y=-.22;scene.add(beach);
+const water=new THREE.Mesh(new THREE.CircleGeometry(230,64),new THREE.MeshStandardMaterial({color:0x277d91,transparent:true,opacity:.72,roughness:.25,metalness:.05}));water.rotation.x=-Math.PI/2;water.position.y=-.35;scene.add(water);
+
+const world=[]; function add(o,type){o.userData.type=type;scene.add(o);world.push(o);return o}
+function tree(x,z,s=1){let g=new THREE.Group();let trunk=new THREE.Mesh(new THREE.CylinderGeometry(.35,.55,4.5,7),mat(0x654126));trunk.position.y=2.2;g.add(trunk);for(let i=0;i<3;i++){let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(2.1-i*.25,1),mat(i?0x315f32:0x3d7439));crown.position.set((i-1)*.6,5+i*.45,(i%2)*.35);g.add(crown)}g.position.set(x,0,z);g.scale.setScalar(s);g.traverse(o=>o.castShadow=true);return add(g,'tree')}
+function rock(x,z,s=1){let o=new THREE.Mesh(new THREE.DodecahedronGeometry(1.2,0),mat(0x6f756c));o.scale.set(1.4*s,.8*s,s);o.position.set(x,.65*s,z);o.rotation.set(.2,Math.random()*3,.1);o.castShadow=true;return add(o,'rock')}
+for(let i=0;i<38;i++){let a=Math.random()*Math.PI*2,r=12+Math.random()*57;tree(Math.cos(a)*r,Math.sin(a)*r,.7+Math.random()*.65)}
+for(let i=0;i<28;i++){let a=Math.random()*Math.PI*2,r=9+Math.random()*62;rock(Math.cos(a)*r,Math.sin(a)*r,.6+Math.random())}
+
+const player=new THREE.Group();const body=new THREE.Mesh(new THREE.CapsuleGeometry(.55,1.25,5,10),mat(0x6d5946));body.position.y=1.45;body.castShadow=true;player.add(body);
+const head=new THREE.Mesh(new THREE.SphereGeometry(.42,12,10),mat(0xb98a69));head.position.y=2.65;player.add(head);
+const spear=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,3.2,6),mat(0x5c3a22));spear.rotation.z=.35;spear.position.set(.7,1.5,0);player.add(spear);player.position.set(0,0,8);scene.add(player);
+
+function dino(x,z,c=0x526747){let g=new THREE.Group(),b=new THREE.Mesh(new THREE.SphereGeometry(1.3,12,8),mat(c));b.scale.set(1.6,.75,.75);b.position.y=1.45;g.add(b);let h=new THREE.Mesh(new THREE.SphereGeometry(.55,10,7),mat(c));h.position.set(1.8,1.55,0);g.add(h);let tail=new THREE.Mesh(new THREE.ConeGeometry(.35,2.8,8),mat(c));tail.rotation.z=-Math.PI/2;tail.position.set(-2.1,1.45,0);g.add(tail);for(let sx of [-.75,.75])for(let sz of [-.45,.45]){let l=new THREE.Mesh(new THREE.CylinderGeometry(.13,.18,1.2,6),mat(c));l.position.set(sx,.55,sz);g.add(l)}g.position.set(x,0,z);g.userData={type:'dino',phase:Math.random()*6};g.traverse(o=>o.castShadow=true);scene.add(g);return g}
+const dinos=[dino(18,-12),dino(-24,-8,0x65734c),dino(34,25,0x435a42),dino(-35,30,0x6a6447)];
+
+let inv={wood:0,stone:0}, move={x:0,y:0}, yaw=0,pitch=.28, dragging=false,lastX=0,lastY=0, stamina=100,hunger=90,thirst=92,time=8;
+function show(t){toast.textContent=t;toast.style.opacity=1;clearTimeout(show.t);show.t=setTimeout(()=>toast.style.opacity=0,1200)}
+const joy=document.querySelector('#joy'),knob=document.querySelector('#knob');
+function joySet(e){let r=joy.getBoundingClientRect(),x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height/2),m=Math.hypot(x,y),lim=43;if(m>lim){x*=lim/m;y*=lim/m}knob.style.transform=`translate(${x}px,${y}px)`;move.x=x/lim;move.y=y/lim}
+joy.addEventListener('pointerdown',e=>{joy.setPointerCapture(e.pointerId);joySet(e)});joy.addEventListener('pointermove',e=>{if(e.buttons)joySet(e)});joy.addEventListener('pointerup',()=>{move.x=move.y=0;knob.style.transform=''});
+renderer.domElement.addEventListener('pointerdown',e=>{if(e.clientX>innerWidth*.35){dragging=true;lastX=e.clientX;lastY=e.clientY}});
+renderer.domElement.addEventListener('pointermove',e=>{if(dragging){yaw-=(e.clientX-lastX)*.006;pitch=Math.max(.08,Math.min(.7,pitch+(e.clientY-lastY)*.004));lastX=e.clientX;lastY=e.clientY}});
+renderer.domElement.addEventListener('pointerup',()=>dragging=false);
+
+function nearest(){let best=null,bd=4.5;for(const o of world){let d=o.position.distanceTo(player.position);if(d<bd){bd=d;best=o}}return best}
+document.querySelector('#gather').onclick=()=>{let o=nearest();if(!o)return show('เข้าใกล้ต้นไม้หรือก้อนหินก่อน');if(o.userData.type==='tree'){inv.wood++;show('+1 ไม้')}else{inv.stone++;show('+1 หิน')}o.scale.multiplyScalar(.92);updateUI()};
+document.querySelector('#build').onclick=()=>{if(inv.wood<3||inv.stone<2)return show('ต้องใช้ไม้ 3 + หิน 2');inv.wood-=3;inv.stone-=2;let fire=new THREE.Group();let ring=new THREE.Mesh(new THREE.TorusGeometry(.65,.13,6,12),mat(0x77736a));ring.rotation.x=Math.PI/2;fire.add(ring);let flame=new THREE.PointLight(0xff7b24,6,12);flame.position.y=1;fire.add(flame);fire.position.copy(player.position).add(new THREE.Vector3(Math.sin(yaw)*2,0,Math.cos(yaw)*2));scene.add(fire);show('สร้างกองไฟแล้ว');updateUI()};
+document.querySelector('#attack').onclick=()=>show('โจมตีด้วยหอก');
+function updateUI(){document.querySelector('#wood').textContent=inv.wood;document.querySelector('#stone').textContent=inv.stone;document.querySelector('#quest').innerHTML=`<b>ภารกิจแรก</b><br>เก็บไม้ ${Math.min(inv.wood,5)}/5 · หิน ${Math.min(inv.stone,3)}/3<br><span id="clock">Day 1 · ${String(Math.floor(time)).padStart(2,'0')}:${String(Math.floor(time%1*60)).padStart(2,'0')}</span>`}
+let prev=performance.now();function loop(now){requestAnimationFrame(loop);let dt=Math.min((now-prev)/1000,.04);prev=now;
+ const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)),r=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));let v=f.multiplyScalar(-move.y).add(r.multiplyScalar(move.x));if(v.lengthSq()>.01){v.normalize();player.position.addScaledVector(v,5.2*dt);player.rotation.y=Math.atan2(v.x,v.z);stamina=Math.max(0,stamina-dt*2)}else stamina=Math.min(100,stamina+dt*4);
+ if(player.position.length()>68)player.position.setLength(68);
+ const dist=7.5,cp=new THREE.Vector3(player.position.x+Math.sin(yaw)*dist*Math.cos(pitch),player.position.y+3+Math.sin(pitch)*dist,player.position.z+Math.cos(yaw)*dist*Math.cos(pitch));camera.position.lerp(cp,.12);camera.lookAt(player.position.x,1.5,player.position.z);
+ dinos.forEach((d,i)=>{d.userData.phase+=dt;d.position.x+=Math.sin(d.userData.phase+i)*dt*.45;d.position.z+=Math.cos(d.userData.phase*.7+i)*dt*.35;d.rotation.y=Math.atan2(Math.sin(d.userData.phase+i),Math.cos(d.userData.phase*.7+i))});
+ time=(time+dt*.035)%24; hunger=Math.max(0,hunger-dt*.05);thirst=Math.max(0,thirst-dt*.075);
+ document.querySelector('#st .fill').style.width=stamina+'%';document.querySelector('#hu .fill').style.width=hunger+'%';document.querySelector('#th .fill').style.width=thirst+'%';
+ if(Math.floor(now/1000)%2===0)updateUI(); renderer.render(scene,camera)}
+camera.position.set(0,6,14);updateUI();loading.remove();requestAnimationFrame(loop);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body></html>
